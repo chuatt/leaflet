@@ -1,0 +1,101 @@
+---
+title: "Assignment: R Markdown and Leaflet"
+author: "Tong Tat"
+date: "December 20, 2017"
+output: 
+  html_document:
+    keep_md: true
+    highlight: tango
+    theme: yeti
+---
+
+**Rpub Link:** [Click Here](http://rpubs.com/chuatt/343300)
+
+
+# 1. Introduction
+
+This is an document is for Coursera Developing Data Product assignment. The objective is to create a webpage using R Markdown that features a map created with Leaflet.
+
+The dataset is coming from the **zipcode** package. This package contains a database of city, state, latitude and longitude information for US ZIP codes from CivicSpace Database (August 2004) augmented by Daniel Coven's
+federalgovernmentzipcodes.us website (updated January 22,2012).
+
+
+# 2. Loading Dataset
+
+```{r, warning=FALSE, echo=TRUE, cache=FALSE, message=FALSE}
+# Clear cache first
+rm(list=ls())
+
+# Check for missing dependencies and load necessary R packages
+if(!require(zipcode)){install.packages('zipcode')}; library(zipcode)
+if(!require(leaflet)){install.packages('leaflet')}; library(leaflet)
+if(!require(dplyr)){install.packages('dplyr')}; library(dplyr)
+if(!require(ggplot2)){install.packages('ggplot2')}; library(ggplot2)
+
+# Load dataset
+data(zipcode)
+```
+
+
+# 3. Data Exploration
+
+Now, lets take a look at the zipcode dataset.
+```{r, warning=FALSE, echo=TRUE, cache=FALSE, message=FALSE}
+summary(zipcode)
+```
+
+Interesting, looks like it contains all the zipcodes from all the cities across all the different states, along with their latitude & longitude information. There seemed to be some NA values inside the latitude and longitude columns so I'm removing it now.
+
+```{r, warning=FALSE, echo=TRUE, cache=FALSE, message=FALSE}
+zipcode2 <-na.omit(zipcode)
+```
+
+# 4. Data Transformation
+
+Using dplyr package, we'll summarise the data into city, latitude, longitude and number of zipcodes per state.
+Latitude and Longitude will be computed as the average of each state. Renaming latitude as **lat** and longitude as **lng** so that leaflet can consume later.
+
+```{r, warning=FALSE, echo=TRUE, cache=FALSE, message=FALSE}
+zipcode3 <- zipcode2 %>% group_by(state) %>% summarise(lat=mean(latitude), lng=mean(longitude), count_zipcode=n())
+```
+
+Now, take a quick look at the transformed dataset.
+
+```{r, warning=FALSE, echo=TRUE, cache=FALSE, message=FALSE}
+summary(zipcode3)
+View(zipcode3)
+```
+
+
+Noticed there are some states with very few zipcodes and their latitude and longitude are way too off, these are likely to be errors in the original dataset. So I'm filtering states that has latitude between 28 & 50.
+
+```{r, warning=FALSE, echo=TRUE, cache=FALSE, message=FALSE}
+zipcode4 <- subset(zipcode3, lat>28 & lat<50)
+```
+
+
+# 5. Data Visualization
+
+Alright, let's apply the leaflet package and plot the markers. Size of the markers will indicate the number zipcode in that state.
+
+```{r, warning=FALSE, echo=TRUE, cache=FALSE, message=FALSE}
+zipcode4 %>% leaflet() %>% addTiles() %>% addCircles(weight=1, radius=zipcode4$count_zipcode*150)
+```
+
+
+Plotting this in a pareto chart to see more clearly.
+
+```{r, warning=FALSE, echo=TRUE, cache=FALSE, message=FALSE}
+# Filter for top10 states
+zipcode5 <- arrange(zipcode4,desc(count_zipcode))[1:20,]
+
+plot1 <- ggplot(zipcode5, aes(x=reorder(state,count_zipcode), y=count_zipcode, fill=count_zipcode)) + 
+  geom_bar(stat="identity") + 
+  scale_fill_gradient2(low='red', mid='snow3', high='red', space='Lab') +
+  labs(title="Top 20 US State with Most Number of Zipcodes", y="Number of Zipcodes", x="State") +
+  coord_flip()
+plot1
+```
+
+
+We can see that Texas is the state with the highest number of zipcodes, follow by California and Pennsylvania.
